@@ -59,3 +59,86 @@ jobs:
         with:
           projectBaseDir: ${{ inputs.project_base_dir }}
           args: ${{ steps.scanner-args.outputs.args }}
+
+      # Report only; the scan step already decides whether the job fails.
+      - name: Quality gate summary
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          REPORT_TASK_FILE: ${{ inputs.project_base_dir }}/.scannerwork/report-task.txt
+          MAX_POLL_ATTEMPTS: "30"
+          POLL_INTERVAL_SECONDS: "5"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "$REPORT_TASK_FILE" ]; then
+            echo "No scanner report found; skipping quality gate summary"
+            exit 0
+          fi
+
+          read_task_value() { grep "^$1=" "$REPORT_TASK_FILE" | cut -d= -f2-; }
+          # The token is passed through a curl config so it never appears in argv.
+          sonar_get() { curl -fsS --config <(printf 'user = "%s:"\n' "$SONAR_TOKEN") "$1"; }
+
+          server_url="${SONAR_HOST_URL:-$(read_task_value serverUrl)}"
+          dashboard_url="$(read_task_value dashboardUrl)"
+          task_url="$(read_task_value ceTaskUrl)"
+
+          analysis_id=""
+          for _ in $(seq 1 "$MAX_POLL_ATTEMPTS"); do
+            task_json="$(sonar_get "$task_url")"
+            analysis_id="$(jq -r '.task.analysisId // empty' <<< "$task_json")"
+            task_status="$(jq -r '.task.status' <<< "$task_json")"
+            if [ -n "$analysis_id" ] || [[ "$task_status" == "FAILED" || "$task_status" == "CANCELED" ]]; then
+              break
+            fi
+            sleep "$POLL_INTERVAL_SECONDS"
+          done
+
+          if [ -z "$analysis_id" ]; then
+            echo "::warning::SonarQube analysis did not finish; quality gate summary skipped"
+            exit 0
+          fi
+
+          sonar_get "${server_url%/}/api/qualitygates/project_status?analysisId=${analysis_id}" \
+            | jq -r --arg dashboard "$dashboard_url" '
+              def metric_label: {
+                coverage: "Coverage", new_coverage: "Coverage on New Code",
+                duplicated_lines_density: "Duplicated Lines",
+                new_duplicated_lines_density: "Duplicated Lines on New Code",
+                sqale_rating: "Maintainability", new_maintainability_rating: "Maintainability on New Code",
+                reliability_rating: "Reliability", new_reliability_rating: "Reliability on New Code",
+                security_rating: "Security", new_security_rating: "Security on New Code",
+                security_hotspots_reviewed: "Security Hotspots Reviewed",
+                new_security_hotspots_reviewed: "Security Hotspots Reviewed on New Code"
+              }[.] // .;
+              def rating_letter: ["A","B","C","D","E"][(tonumber | floor) - 1] // .;
+              def show($key; $value):
+                if $value == null then "-"
+                elif ($key | test("rating$")) then ($value | rating_letter)
+                elif ($key | test("coverage|density|reviewed")) then "\($value)%"
+                else $value end;
+              def passing_operator: {"LT": ">=", "GT": "<=", "EQ": "=", "NE": "!="}[.] // .;
+              def result:
+                if . == "OK" then "![PASSED](https://img.shields.io/badge/PASSED-4caf50?style=flat-square)"
+                elif . == "ERROR" then "![FAILED](https://img.shields.io/badge/FAILED-e05d44?style=flat-square)"
+                else "![\(.)](https://img.shields.io/badge/\(.)-lightgrey?style=flat-square)" end;
+
+              "![SonarQube](https://img.shields.io/badge/SONARQUBE-black?style=for-the-badge)",
+              "",
+              "## Quality Gate summary",
+              "",
+              "### SonarQube Url",
+              "",
+              $dashboard,
+              "",
+              "---",
+              "",
+              "| Measures | Threshold | Actual | Result |",
+              "|---|---|---|---|",
+              (.projectStatus.conditions[]
+                | "| \(.metricKey | metric_label) | \(.comparator | passing_operator) \(show(.metricKey; .errorThreshold)) | \(show(.metricKey; .actualValue)) | \(.status | result) |")
+            ' >> "$GITHUB_STEP_SUMMARY"
