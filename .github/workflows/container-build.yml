@@ -7,6 +7,11 @@ on:
         description: "Lowercase image name, e.g. my-api"
         required: true
         type: string
+      build-args:
+        description: "Docker build arguments, one KEY=VALUE per line"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -40,6 +45,7 @@ jobs:
           load: true
           push: false
           tags: ${{ env.IMAGE }}
+          build-args: ${{ inputs.build-args }}
 
       # 2. Scan the local image.
       - name: Trivy Container Image Scan

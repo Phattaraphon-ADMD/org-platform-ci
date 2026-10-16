@@ -29,7 +29,8 @@ Reusable GitHub Actions workflows for multiple programming languages.
 5. Add `.github/workflows/pipeline.yml` to each application repository.
 6. Call only `ci.yml` with `language`, and optionally `severity` and `image_name`.
    It runs language CI and the Trivy source scan, then builds, scans and pushes
-   the image on pushes to `main` when `image_name` is set.
+   the image on pushes to `main` when `image_name` is set. Use `build-args`
+   (one `KEY=VALUE` per line) to pass Docker build arguments.
 7. Grant `packages: write` to the calling job.
 8. For SonarQube, add a `sonar-project.properties` file to each application
    repository and pass the `SONAR_TOKEN` secret (and `SONAR_HOST_URL` for

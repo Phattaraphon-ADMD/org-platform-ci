@@ -17,6 +17,11 @@ on:
         required: false
         type: string
         default: ""
+      build-args:
+        description: "Docker build arguments, one KEY=VALUE per line"
+        required: false
+        type: string
+        default: ""
       enable_sonarqube:
         description: "Run SonarQube analysis; requires the SONAR_TOKEN secret"
         required: false
@@ -114,6 +119,7 @@ jobs:
     uses: ./.github/workflows/container-build.yml
     with:
       image_name: ${{ inputs.image_name }}
+      build-args: ${{ inputs.build-args }}
     permissions:
       contents: read
       packages: write
