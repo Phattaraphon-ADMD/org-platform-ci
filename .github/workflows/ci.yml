@@ -1,0 +1,94 @@
+name: Central CI Router
+
+on:
+  workflow_call:
+    inputs:
+      language:
+        description: "java, node, dotnet, python, go"
+        required: true
+        type: string
+      severity:
+        description: "Trivy severity levels for the source scan"
+        required: false
+        type: string
+        default: HIGH,CRITICAL
+      image_name:
+        description: "Lowercase image name; container job is skipped when empty"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  validate-language:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate language
+        env:
+          LANGUAGE: ${{ inputs.language }}
+        shell: bash
+        run: |
+          case "$LANGUAGE" in
+            java|node|dotnet|python|go)
+              echo "Supported language: $LANGUAGE"
+              ;;
+            *)
+              echo "Unsupported language: $LANGUAGE"
+              exit 1
+              ;;
+          esac
+
+  java:
+    needs: validate-language
+    if: inputs.language == 'java'
+    uses: ./.github/workflows/ci-java.yml
+
+  node:
+    needs: validate-language
+    if: inputs.language == 'node'
+    uses: ./.github/workflows/ci-node.yml
+
+  dotnet:
+    needs: validate-language
+    if: inputs.language == 'dotnet'
+    uses: ./.github/workflows/ci-dotnet.yml
+
+  python:
+    needs: validate-language
+    if: inputs.language == 'python'
+    uses: ./.github/workflows/ci-python.yml
+
+  go:
+    needs: validate-language
+    if: inputs.language == 'go'
+    uses: ./.github/workflows/ci-go.yml
+
+  source-security:
+    uses: ./.github/workflows/security.yml
+    with:
+      severity: ${{ inputs.severity }}
+
+  # Skipped language jobs count as success; any failure blocks the push.
+  container:
+    needs:
+      - validate-language
+      - java
+      - node
+      - dotnet
+      - python
+      - go
+      - source-security
+    if: >-
+      ${{ !cancelled()
+      && !contains(needs.*.result, 'failure')
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && inputs.image_name != '' }}
+    uses: ./.github/workflows/container-build.yml
+    with:
+      image_name: ${{ inputs.image_name }}
+    permissions:
+      contents: read
+      packages: write

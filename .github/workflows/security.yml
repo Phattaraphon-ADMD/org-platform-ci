@@ -1,0 +1,32 @@
+name: Source Security Scan
+
+on:
+  workflow_call:
+    inputs:
+      severity:
+        description: "Trivy severity levels"
+        required: false
+        type: string
+        default: HIGH,CRITICAL
+
+permissions:
+  contents: read
+
+jobs:
+  trivy-fs:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Scan source and dependencies
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: ${{ inputs.severity }}
+          exit-code: "1"
+          ignore-unfixed: true

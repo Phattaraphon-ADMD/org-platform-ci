@@ -1,0 +1,22 @@
+name: Application Pipeline
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  # Central ci.yml runs language CI, Trivy source scan, and (on push to main) image build/scan/push.
+  ci:
+    uses: company/org-platform-ci/.github/workflows/ci.yml@v1
+    with:
+      language: java
+      severity: HIGH,CRITICAL
+      image_name: my-api
+    permissions:
+      contents: read
+      packages: write
