@@ -1,0 +1,111 @@
+name: Trivy Report Summary
+description: Render a Trivy JSON report as a job summary and fail on selected severities.
+
+inputs:
+  report-path:
+    description: "Path to the Trivy JSON report"
+    required: true
+  title:
+    description: "Summary title"
+    required: false
+    default: "Trivy Scan"
+  maintainer:
+    description: "Maintainer shown in the summary header"
+    required: false
+    default: "ITQA Team"
+  email:
+    description: "Contact email shown in the summary header"
+    required: false
+    default: "test-devOps@g.com"
+  fail-on-severity:
+    description: "Comma-separated severities that fail the job"
+    required: false
+    default: "HIGH,CRITICAL"
+
+runs:
+  using: composite
+  steps:
+    - name: Write Trivy summary
+      shell: bash
+      env:
+        REPORT_PATH: ${{ inputs.report-path }}
+        SUMMARY_TITLE: ${{ inputs.title }}
+        MAINTAINER: ${{ inputs.maintainer }}
+        CONTACT_EMAIL: ${{ inputs.email }}
+      run: |
+        jq -r \
+          --arg title "$SUMMARY_TITLE" \
+          --arg maintainer "$MAINTAINER" \
+          --arg email "$CONTACT_EMAIL" '
+          def rank: {"CRITICAL":0,"HIGH":1,"MEDIUM":2,"LOW":3}[.] // 4;
+          def color: {"CRITICAL":"red","HIGH":"ff5555","MEDIUM":"e0b000","LOW":"0075ca"}[.] // "white";
+          def badge: "![\(.)](https://img.shields.io/badge/\(.)-\(color)?style=flat-square)";
+          def cell: gsub("\\|"; "\\|") | gsub("\n"; " ");
+          def link($id; $url): if $url then "[\($id)](\($url))" else $id end;
+          def advisory: .PrimaryURL // ("https://avd.aquasec.com/nvd/" + (.VulnerabilityID | ascii_downcase));
+          def findings: (.Results // [])[] | ((.Vulnerabilities // []) + (.Misconfigurations // []) + (.Secrets // []))[];
+
+          ([findings] | group_by(.Severity) | map({key: .[0].Severity, value: length}) | from_entries) as $counts
+          | ["CRITICAL","HIGH","MEDIUM","LOW","UNKNOWN"] as $severities
+          | "# 📊 \($title) Summary",
+            "",
+            "Maintainer: `\($maintainer)`  ",
+            "Email: \($email)",
+            "",
+            "### 🚨 Vulnerability Count Summary",
+            "",
+            "| Severity | Count |",
+            "|---|---|",
+            ($severities[] | "| \(badge) | \($counts[.] // 0) |"),
+            "",
+            (if ([findings] | length) == 0 then "No findings." else empty end),
+            ((.Results // [])[]
+              | select((.Vulnerabilities // []) | length > 0)
+              | "### 🔍 Target: `\(.Target)`",
+                "",
+                "Class: `\(.Class)`  ",
+                "Type: `\(.Type)`",
+                "",
+                "| Package | FilePath | Vulnerability ID | Severity | Installed | Fixed Version |",
+                "|---|---|---|---|---|---|",
+                (.Vulnerabilities | sort_by(.Severity | rank) | .[]
+                  | "| `\(.PkgName)` | `\(.PkgPath // "")` | \(link(.VulnerabilityID; advisory)) | \(.Severity | badge) | `\(.InstalledVersion)` | `\(.FixedVersion // "")` |"),
+                ""),
+            ((.Results // [])[]
+              | select((.Misconfigurations // []) | length > 0)
+              | "### 🔍 Misconfigurations: `\(.Target)`",
+                "",
+                "| ID | Severity | Title |",
+                "|---|---|---|",
+                (.Misconfigurations | sort_by(.Severity | rank) | .[]
+                  | "| \(link(.ID; .PrimaryURL)) | \(.Severity | badge) | \(.Title // "" | cell) |"),
+                ""),
+            ((.Results // [])[]
+              | select((.Secrets // []) | length > 0)
+              | "### 🔍 Secrets: `\(.Target)`",
+                "",
+                "| Rule | Severity | Title |",
+                "|---|---|---|",
+                (.Secrets | sort_by(.Severity | rank) | .[]
+                  | "| `\(.RuleID)` | \(.Severity | badge) | \(.Title // "" | cell) |"),
+                "")
+          ' "$REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Fail on selected severities
+      shell: bash
+      env:
+        REPORT_PATH: ${{ inputs.report-path }}
+        FAIL_ON_SEVERITY: ${{ inputs.fail-on-severity }}
+      run: |
+        failing_count="$(jq --arg severities "$FAIL_ON_SEVERITY" '
+          ($severities | split(",") | map(gsub("\\s"; ""))) as $blocked
+          | [(.Results // [])[]
+              | ((.Vulnerabilities // []) + (.Misconfigurations // []) + (.Secrets // []))[]
+              | . as $finding
+              | select($blocked | any(. == $finding.Severity))]
+          | length' "$REPORT_PATH")"
+
+        if [ "$failing_count" -gt 0 ]; then
+          echo "::error::Trivy found ${failing_count} finding(s) with severity ${FAIL_ON_SEVERITY}"
+          exit 1
+        fi

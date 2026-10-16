@@ -54,9 +54,19 @@ jobs:
           scan-type: image
           image-ref: ${{ env.IMAGE }}
           scanners: vuln,secret
-          severity: HIGH,CRITICAL
-          exit-code: "1"
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          format: json
+          output: ${{ runner.temp }}/trivy-image-report.json
+          exit-code: "0"
           ignore-unfixed: true
+
+      # Local ./ actions resolve to the caller repo, so reference this repo explicitly.
+      - name: Trivy report and severity gate
+        uses: company/org-platform-ci/.github/actions/trivy-summary@v1
+        with:
+          report-path: ${{ runner.temp }}/trivy-image-report.json
+          title: Trivy Image Scan
+          fail-on-severity: HIGH,CRITICAL
 
       # 3. Login only after image scan succeeds.
       - name: Login to GHCR
