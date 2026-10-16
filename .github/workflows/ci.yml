@@ -32,6 +32,11 @@ on:
         required: false
         type: string
         default: ""
+      sonarqube-project-key:
+        description: "SonarQube project key; defaults to sonar-project.properties or the repository name"
+        required: false
+        type: string
+        default: ""
     secrets:
       SONAR_TOKEN:
         required: false
@@ -95,6 +100,7 @@ jobs:
     uses: ./.github/workflows/sonarqube.yml
     with:
       sonarqube-args: ${{ inputs.sonarqube-args }}
+      sonarqube-project-key: ${{ inputs.sonarqube-project-key }}
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}

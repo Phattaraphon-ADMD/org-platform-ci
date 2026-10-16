@@ -18,6 +18,11 @@ on:
         required: false
         type: string
         default: ""
+      sonarqube-project-key:
+        description: "SonarQube project key; defaults to sonar-project.properties or the repository name"
+        required: false
+        type: string
+        default: ""
     secrets:
       SONAR_TOKEN:
         required: true
@@ -46,10 +51,24 @@ jobs:
         env:
           WAIT_FOR_QUALITY_GATE: ${{ inputs.wait_for_quality_gate }}
           EXTRA_ARGS: ${{ inputs.sonarqube-args }}
+          PROJECT_KEY: ${{ inputs.sonarqube-project-key }}
+          PROPERTIES_FILE: ${{ inputs.project_base_dir }}/sonar-project.properties
         shell: bash
         run: |
+          project_key_arg=""
+          if [ -n "$PROJECT_KEY" ]; then
+            if [[ ! "$PROJECT_KEY" =~ ^[A-Za-z0-9_.:-]+$ ]]; then
+              echo "::error::Invalid sonarqube-project-key"
+              exit 1
+            fi
+            project_key_arg="-Dsonar.projectKey=${PROJECT_KEY}"
+          elif ! grep -q 'sonar.projectKey' <<< "$EXTRA_ARGS" \
+            && ! grep -qs '^[[:space:]]*sonar.projectKey[[:space:]]*=' "$PROPERTIES_FILE"; then
+            project_key_arg="-Dsonar.projectKey=${GITHUB_REPOSITORY#*/}"
+          fi
+
           flattened_args="$(printf '%s' "$EXTRA_ARGS" | tr '\r\n' '  ')"
-          echo "args=-Dsonar.qualitygate.wait=${WAIT_FOR_QUALITY_GATE} ${flattened_args}" >> "$GITHUB_OUTPUT"
+          echo "args=-Dsonar.qualitygate.wait=${WAIT_FOR_QUALITY_GATE} ${project_key_arg} ${flattened_args}" >> "$GITHUB_OUTPUT"
 
       - name: SonarQube scan
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
