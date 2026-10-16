@@ -22,6 +22,11 @@ on:
         required: false
         type: boolean
         default: true
+      sonarqube-args:
+        description: "Extra SonarQube scanner arguments, one or more -Dsonar.* per line"
+        required: false
+        type: string
+        default: ""
     secrets:
       SONAR_TOKEN:
         required: false
@@ -83,6 +88,8 @@ jobs:
   sonarqube:
     if: inputs.enable_sonarqube
     uses: ./.github/workflows/sonarqube.yml
+    with:
+      sonarqube-args: ${{ inputs.sonarqube-args }}
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}

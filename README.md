@@ -33,7 +33,8 @@ Reusable GitHub Actions workflows for multiple programming languages.
 7. Grant `packages: write` to the calling job.
 8. For SonarQube, add a `sonar-project.properties` file to each application
    repository and pass the `SONAR_TOKEN` secret (and `SONAR_HOST_URL` for
-   SonarQube Server). Set `enable_sonarqube: false` to skip it.
+   SonarQube Server). Set `enable_sonarqube: false` to skip it, and use
+   `sonarqube-args` to pass extra `-Dsonar.*` scanner arguments.
 9. Configure repository rulesets and required status checks.
 
 ## Container flow

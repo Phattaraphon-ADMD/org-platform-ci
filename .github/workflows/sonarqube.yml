@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: true
+      sonarqube-args:
+        description: "Extra scanner arguments, one or more -Dsonar.* per line"
+        required: false
+        type: string
+        default: ""
     secrets:
       SONAR_TOKEN:
         required: true
@@ -35,6 +40,17 @@ jobs:
           # Full history is needed for accurate blame and new-code detection.
           fetch-depth: 0
 
+      # Inputs go through env and are flattened to one line before reaching the scanner.
+      - name: Build scanner arguments
+        id: scanner-args
+        env:
+          WAIT_FOR_QUALITY_GATE: ${{ inputs.wait_for_quality_gate }}
+          EXTRA_ARGS: ${{ inputs.sonarqube-args }}
+        shell: bash
+        run: |
+          flattened_args="$(printf '%s' "$EXTRA_ARGS" | tr '\r\n' '  ')"
+          echo "args=-Dsonar.qualitygate.wait=${WAIT_FOR_QUALITY_GATE} ${flattened_args}" >> "$GITHUB_OUTPUT"
+
       - name: SonarQube scan
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:
@@ -42,4 +58,4 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         with:
           projectBaseDir: ${{ inputs.project_base_dir }}
-          args: -Dsonar.qualitygate.wait=${{ inputs.wait_for_quality_gate }}
+          args: ${{ steps.scanner-args.outputs.args }}

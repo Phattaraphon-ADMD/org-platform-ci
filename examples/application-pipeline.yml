@@ -17,6 +17,12 @@ jobs:
       language: java
       severity: HIGH,CRITICAL
       image_name: my-api
+      enable_sonarqube: true
+      sonarqube-args: |
+        -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+        -Dsonar.coverage.exclusions=test/**,*.js,testing/**
+        -Dsonar.cpd.exclusions=test/**,*.js,testing/**
+        -Dsonar.exclusions=Dockerfile
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
