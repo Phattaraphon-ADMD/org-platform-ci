@@ -10,13 +10,16 @@ permissions:
   contents: read
 
 jobs:
-  # Central ci.yml runs language CI, Trivy source scan, and (on push to main) image build/scan/push.
+  # Central ci.yml runs language CI, Trivy, SonarQube, and (on push to main) image build/scan/push.
   ci:
     uses: company/org-platform-ci/.github/workflows/ci.yml@v1
     with:
       language: java
       severity: HIGH,CRITICAL
       image_name: my-api
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
     permissions:
       contents: read
       packages: write

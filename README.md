@@ -15,6 +15,7 @@ Reusable GitHub Actions workflows for multiple programming languages.
 - Centralized language-specific CI
 - Trivy filesystem scan
 - Trivy container image scan
+- SonarQube code quality and security analysis (quality gate)
 - Docker Buildx
 - GitHub Container Registry (GHCR)
 - Reusable workflows via workflow_call
@@ -30,7 +31,10 @@ Reusable GitHub Actions workflows for multiple programming languages.
    It runs language CI and the Trivy source scan, then builds, scans and pushes
    the image on pushes to `main` when `image_name` is set.
 7. Grant `packages: write` to the calling job.
-8. Configure repository rulesets and required status checks.
+8. For SonarQube, add a `sonar-project.properties` file to each application
+   repository and pass the `SONAR_TOKEN` secret (and `SONAR_HOST_URL` for
+   SonarQube Server). Set `enable_sonarqube: false` to skip it.
+9. Configure repository rulesets and required status checks.
 
 ## Container flow
 

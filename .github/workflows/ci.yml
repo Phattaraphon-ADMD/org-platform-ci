@@ -17,6 +17,16 @@ on:
         required: false
         type: string
         default: ""
+      enable_sonarqube:
+        description: "Run SonarQube analysis; requires the SONAR_TOKEN secret"
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      SONAR_TOKEN:
+        required: false
+      SONAR_HOST_URL:
+        required: false
 
 permissions:
   contents: read
@@ -70,6 +80,13 @@ jobs:
     with:
       severity: ${{ inputs.severity }}
 
+  sonarqube:
+    if: inputs.enable_sonarqube
+    uses: ./.github/workflows/sonarqube.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
   # Skipped language jobs count as success; any failure blocks the push.
   container:
     needs:
@@ -80,6 +97,7 @@ jobs:
       - python
       - go
       - source-security
+      - sonarqube
     if: >-
       ${{ !cancelled()
       && !contains(needs.*.result, 'failure')

@@ -1,0 +1,45 @@
+name: SonarQube Analysis
+
+on:
+  workflow_call:
+    inputs:
+      project_base_dir:
+        description: "Analysis base directory"
+        required: false
+        type: string
+        default: "."
+      wait_for_quality_gate:
+        description: "Fail the job when the SonarQube quality gate fails"
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      SONAR_TOKEN:
+        required: true
+      SONAR_HOST_URL:
+        description: "Required for SonarQube Server, not for SonarQube Cloud"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  sonarqube:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          # Full history is needed for accurate blame and new-code detection.
+          fetch-depth: 0
+
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          projectBaseDir: ${{ inputs.project_base_dir }}
+          args: -Dsonar.qualitygate.wait=${{ inputs.wait_for_quality_gate }}
