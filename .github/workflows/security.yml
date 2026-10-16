@@ -35,7 +35,7 @@ jobs:
 
       # Local ./ actions resolve to the caller repo, so reference this repo explicitly.
       - name: Trivy report and severity gate
-        uses: company/org-platform-ci/.github/actions/trivy-summary@v1
+        uses: Phattaraphon-ADMD/org-platform-ci/.github/actions/trivy-summary@v1
         with:
           report-path: ${{ runner.temp }}/trivy-fs-report.json
           title: Trivy Source Scan
